@@ -628,4 +628,181 @@ local function stopSpeed()
     if speedConn then speedConn:Disconnect(); speedConn = nil end
     local char = player.Character
     if char then
-        local hum = char:FindFirstChildOfClass("Humano
+    oid")
+        if hum then hum.WalkSpeed = baseWalkSpeed end
+    end
+    speedBtn.Text = "SPEED: OFF"
+    speedBtn.BackgroundColor3 = C_SPEED_OFF
+end
+
+local speedBusy = false
+local function onSpeedToggle()
+    if speedBusy then return end
+    speedBusy = true
+    task.delay(0.2, function() speedBusy = false end)
+    if speedActive then stopSpeed() else startSpeed() end
+end
+speedBtn.Activated:Connect(onSpeedToggle)
+speedBtn.MouseButton1Click:Connect(onSpeedToggle)
+
+speedSlider.FocusLost:Connect(function()
+    local n = tonumber(speedSlider.Text)
+    if n and n >= 16 and n <= 1000 then
+        targetSpeed = math.floor(n)
+        speedValue.Text = tostring(targetSpeed)
+        if speedActive then
+            local char = player.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then hum.WalkSpeed = targetSpeed end
+            end
+            speedBtn.Text = "SPEED: ON (" .. targetSpeed .. ")"
+        end
+    else
+        speedSlider.Text = tostring(targetSpeed)
+    end
+end)
+
+-- JUMP
+local lastJumpTime = 0
+local function doJump()
+    local now = tick()
+    if (now - lastJumpTime) < JUMP_COOLDOWN then return end
+    lastJumpTime = now
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then return end
+    local wasNoclip = noclipActive
+    noclipActive = false
+    local savedPS = hum.PlatformStand
+    hum.PlatformStand = false
+    local jumpVel = JUMP_VELOCITY
+    pcall(function()
+        if hum.UseJumpPower == false and hum.JumpHeight and hum.JumpHeight > 0 then
+            jumpVel = math.sqrt(2 * workspace.Gravity * hum.JumpHeight)
+        elseif hum.JumpPower and hum.JumpPower > 0 then
+            jumpVel = hum.JumpPower
+        end
+    end)
+    pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+    pcall(function() hum.Jump = true end)
+    root.AssemblyLinearVelocity = Vector3.new(
+        root.AssemblyLinearVelocity.X, jumpVel, root.AssemblyLinearVelocity.Z
+    )
+    task.delay(0.15, function()
+        if hum and hum.Parent then hum.PlatformStand = savedPS end
+        noclipActive = wasNoclip
+    end)
+end
+
+local holdingJump = false
+jumpBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        holdingJump = true
+        task.spawn(function()
+            doJump()
+            while holdingJump do
+                task.wait(JUMP_HOLD_RATE)
+                if holdingJump then doJump() end
+            end
+        end)
+    end
+end)
+jumpBtn.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        holdingJump = false
+    end
+end)
+
+-- GOTO
+local running = false
+local currentTween = nil
+
+local function doGoto()
+    if running then return end
+    if not selectedPlayer then
+        status.Text = "selecione um jogador primeiro"
+        status.TextColor3 = Color3.fromRGB(255, 180, 60)
+        return
+    end
+    if not selectedPlayer.Parent then
+        status.Text = "jogador saiu do servidor"
+        status.TextColor3 = C_DANGER
+        selectedPlayer = nil
+        selectedInfo.Text = "selecionado: nenhum"
+        return
+    end
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then return end
+    local tgtCF = findTargetCF()
+    if not tgtCF then
+        status.Text = "alvo sem personagem"
+        status.TextColor3 = Color3.fromRGB(255, 180, 60)
+        return
+    end
+    running = true
+    status.Text = "calculando rota..."
+    status.TextColor3 = C_ACCENT2
+    pcall(function() root:SetNetworkOwner(player) end)
+    if USE_SWIM_STATE then
+        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Swimming) end)
+        task.wait(0.8)
+    end
+    hum.PlatformStand = true
+    root.AssemblyLinearVelocity  = Vector3.zero
+    root.AssemblyAngularVelocity = Vector3.zero
+    root.Anchored = false
+    local randOff = Vector3.new(
+        math.random(-RANDOM_OFFSET, RANDOM_OFFSET),
+        HOVER_OFFSET,
+        math.random(-RANDOM_OFFSET, RANDOM_OFFSET)
+    )
+    local goalCF = CFrame.new(tgtCF.Position + randOff) * root.CFrame.Rotation
+    local ti = TweenInfo.new(TWEEN_TIME, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+    currentTween = TweenService:Create(root, ti, { CFrame = goalCF })
+    currentTween:Play()
+    status.Text = "voando até " .. selectedPlayer.Name .. "..."
+    status.TextColor3 = Color3.fromRGB(120, 255, 150)
+    local start = tick()
+    while running do
+        if not root or not root.Parent then break end
+        if not selectedPlayer or not selectedPlayer.Parent then break end
+        if (root.Position - goalCF.Position).Magnitude < 2 then break end
+        if (tick() - start) > (TWEEN_TIME + 1.5) then break end
+        task.wait(0.05)
+    end
+    currentTween = nil
+    if root and root.Parent then
+        root.AssemblyLinearVelocity  = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end
+    if hum and hum.Parent then
+        hum.PlatformStand = false
+        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+    end
+    status.Text = "chegou!"
+    status.TextColor3 = Color3.fromRGB(120, 255, 120)
+    running = false
+end
+
+local gotoBusy = false
+local function onGoto()
+    if gotoBusy or running then return end
+    gotoBusy = true
+    task.delay(0.5, function() gotoBusy = false end)
+    if USE_NOCLIP then startNoclip() end
+    doGoto()
+end
+gotoBtn.Activated:Connect(onGoto)
+gotoBtn.MouseButton1Click:Connect(onGoto)
+
+-- INIT
+refreshList()
+animateShow()
