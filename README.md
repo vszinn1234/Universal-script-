@@ -1,7 +1,6 @@
 -- ============================================
 -- GOTO + JUMP + SPEED · UI Polida + Animada
 -- COMPATÍVEL: Delta/Codex/Fluxus/Arceus/Wave/KRNL
--- Sem += / sem re-parent / sem deprecated
 -- ============================================
 local Players      = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -35,30 +34,25 @@ local C_JUMP      = Color3.fromRGB(40, 190, 100)
 local C_DANGER    = Color3.fromRGB(220, 70, 70)
 local C_SEL       = Color3.fromRGB(0, 150, 220)
 
--- Compat: aguarda spawn
-local function safeWait(t)
-    if task and task.wait then task.wait(t) else wait(t) end
-end
-
 -- ============== NOCLIP ==============
 local noclipActive = false
 local noclipConn = nil
+
 local function applyNoclip()
     if not noclipActive then return end
     local char = player.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if hum then
-        -- Método 1: ChangeState (preferido)
         local ok = pcall(function() hum:ChangeState(11) end)
         if not ok then
-            -- Método 2: CanCollide fallback (executors antigos)
             for _, p in ipairs(char:GetDescendants()) do
                 if p:IsA("BasePart") then p.CanCollide = false end
             end
         end
     end
 end
+
 local function startNoclip()
     if noclipActive then return end
     noclipActive = true
@@ -69,6 +63,7 @@ local function startNoclip()
     end
     noclipConn = RunService.Stepped:Connect(applyNoclip)
 end
+
 local function stopNoclip()
     if not noclipActive then return end
     noclipActive = false
@@ -135,7 +130,7 @@ panel.ClipsDescendants = true
 panel.Parent = gui
 corner(panel, 16)
 stroke(panel, C_ACCENT, 1.3, 0.4)
-local panelGrad = gradient(panel, C_BG2, C_BG, 90)
+gradient(panel, C_BG2, C_BG, 90)
 
 local panelPad = Instance.new("UIPadding")
 panelPad.PaddingTop = UDim.new(0, 12)
@@ -628,7 +623,7 @@ local function stopSpeed()
     if speedConn then speedConn:Disconnect(); speedConn = nil end
     local char = player.Character
     if char then
-    oid")
+        local hum = char:FindFirstChildOfClass("Humanoid")
         if hum then hum.WalkSpeed = baseWalkSpeed end
     end
     speedBtn.Text = "SPEED: OFF"
